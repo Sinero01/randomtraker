@@ -1,0 +1,196 @@
+<div class="dex-container">
+  <!-- Cabecera con Metadatos de la ROM -->
+  <header class="dex-header">
+    <div class="brand">
+      <h1>PokéLocke <span>Randomizer Dex</span></h1>
+      @if (parserService.metadata().seed) {
+        <div class="meta-badges">
+          <span class="badge seed">Seed: {{ parserService.metadata().seed }}</span>
+          <span class="badge starters">
+            Starters: {{ parserService.metadata().starters.join(' · ') }}
+          </span>
+        </div>
+      }
+    </div>
+
+    <div class="upload-box">
+      <label for="logUpload" class="btn-upload">Cargar otro randomizer.log</label>
+      <input id="logUpload" type="file" accept=".log,.txt" (change)="onFileSelected($event)" hidden />
+    </div>
+  </header>
+
+  <!-- Barra de Búsqueda y Filtro de Tipos -->
+  <section class="search-bar">
+    <input
+      type="text"
+      placeholder="Buscar por Pokémon, Nº, Habilidad (ej. Levitación) o Ataque (ej. Terremoto)..."
+      [ngModel]="searchQuery()"
+      (ngModelChange)="searchQuery.set($event)"
+      class="search-input"
+    />
+
+    <select
+      [ngModel]="selectedType()"
+      (ngModelChange)="selectedType.set($event)"
+      class="type-select"
+    >
+      @for (type of allTypes; track type) {
+        <option [value]="type">{{ type === 'ALL' ? 'Todos los tipos' : type }}</option>
+      }
+    </select>
+  </section>
+
+  <!-- Cuerpo Principal: Lista Lateral + Ficha Detallada -->
+  <main class="dex-content">
+    <!-- Columna Izquierda: Lista de Resultados -->
+    <aside class="pokemon-list">
+      <div class="list-count">{{ filteredPokemon().length }} Pokémon encontrados</div>
+
+      @for (mon of filteredPokemon(); track mon.num) {
+        <div
+          class="pokemon-item"
+          [class.active]="selectedPokemon()?.num === mon.num"
+          (click)="selectPokemon(mon)"
+        >
+          <span class="mon-num">#{{ mon.num.toString().padStart(3, '0') }}</span>
+          <div class="mon-info">
+            <span class="mon-name">{{ mon.name }}</span>
+            <span class="mon-abilities-preview">{{ mon.abilities.join(' / ') }}</span>
+          </div>
+          <div class="mon-types">
+            @for (t of mon.types; track t) {
+              <span class="type-pill" [attr.data-type]="t">{{ t }}</span>
+            }
+          </div>
+        </div>
+      }
+    </aside>
+
+    <!-- Columna Derecha: Detalle del Pokémon -->
+    <section class="pokemon-detail">
+      @if (selectedPokemon(); as mon) {
+        <div class="detail-card">
+          <div class="detail-header">
+            <div>
+              <span class="detail-num">#{{ mon.num.toString().padStart(3, '0') }}</span>
+              <h2>{{ mon.name }}</h2>
+            </div>
+            <div class="mon-types">
+              @for (t of mon.types; track t) {
+                <span class="type-pill large" [attr.data-type]="t">{{ t }}</span>
+              }
+            </div>
+          </div>
+
+          <!-- Bloque 1: Habilidades y Objetos Equipados -->
+          <div class="info-grid">
+            <div class="panel">
+              <h3>Habilidades Randomizadas</h3>
+              <div class="abilities-list">
+                @for (ab of mon.abilities; track $index) {
+                  <div class="ability-chip" [class.hidden-ab]="$index === 2">
+                    <span class="ab-slot">
+                      {{ $index === 2 ? 'Habilidad Oculta' : 'Habilidad ' + ($index + 1) }}
+                    </span>
+                    <strong>{{ ab }}</strong>
+                  </div>
+                }
+              </div>
+            </div>
+
+            <!-- Bloque 2: Evolución -->
+            <div class="panel">
+              <h3>Nivel / Método Evolutivo</h3>
+              @if (mon.evolutions.length > 0) {
+                <div class="evo-list">
+                  @for (evo of mon.evolutions; track evo.targetName) {
+                    <div class="evo-item" (click)="selectByName(evo.targetName)">
+                      <span class="evo-arrow">➔</span>
+                      <div>
+                        <strong class="evo-target">{{ evo.targetName }}</strong>
+                        <p class="evo-method">{{ evo.method }}</p>
+                      </div>
+                    </div>
+                  }
+                </div>
+              } @else {
+                <p class="empty-msg">No tiene más evoluciones.</p>
+              }
+
+              <h3 class="mt-1">Objetos Salvajes</h3>
+              <p class="item-text">{{ mon.heldItems }}</p>
+            </div>
+          </div>
+
+          <!-- Bloque 3: Movimientos para Recordar (Nivel 1) y Movimientos Huevo -->
+          <div class="info-grid">
+            <div class="panel">
+              <h3>Movimientos para Recordar (Nivel 1 / Base)</h3>
+              <div class="tags-wrap">
+                @for (rm of reminderMoves(); track $index) {
+                  <span class="move-tag reminder">{{ rm }}</span>
+                }
+              </div>
+            </div>
+
+            <div class="panel">
+              <h3>Movimientos Huevo</h3>
+              @if (mon.eggMoves.length > 0) {
+                <div class="tags-wrap">
+                  @for (egg of mon.eggMoves; track $index) {
+                    <span class="move-tag egg">{{ egg }}</span>
+                  }
+                </div>
+              } @else {
+                <p class="empty-msg">Sin movimientos huevo registrados.</p>
+              }
+            </div>
+          </div>
+
+          <!-- Bloque 4: Tabla completa de Ataques por Nivel -->
+          <div class="panel moves-panel">
+            <div class="moves-header">
+              <h3>Ataques Aprendidos por Nivel ({{ mon.levelMoves.length }})</h3>
+              <input
+                type="text"
+                placeholder="Filtrar ataque..."
+                [ngModel]="moveFilter()"
+                (ngModelChange)="moveFilter.set($event)"
+                class="move-search"
+              />
+            </div>
+
+            <table class="moves-table">
+              <thead>
+                <tr>
+                  <th>Nivel</th>
+                  <th>Movimiento</th>
+                  <th>Categoría de Aprendizaje</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (mv of filteredLevelMoves(); track $index) {
+                  <tr>
+                    <td class="lvl-cell">Nv. {{ mv.level }}</td>
+                    <td class="move-name-cell">{{ mv.name }}</td>
+                    <td>
+                      @if (mv.level === 1) {
+                        <span class="learn-badge relearner">Inicial / Recuerda-Movimientos</span>
+                      } @else {
+                        <span class="learn-badge levelup">Subida de Nivel</span>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      } @else {
+        <div class="empty-state">
+          <p>Selecciona un Pokémon de la lista izquierda para inspeccionar sus habilidades, evolución y ataques.</p>
+        </div>
+      }
+    </section>
+  </main>
+</div>
